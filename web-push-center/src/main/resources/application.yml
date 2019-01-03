@@ -1,0 +1,9 @@
+server:
+  port: 8011
+
+
+web:
+  server:
+    socket:
+      port: 8899
+

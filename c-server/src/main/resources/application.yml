@@ -1,0 +1,30 @@
+server:
+  port: 19993
+
+spring:
+  application:
+    name: c-server
+  sleuth:
+    enabled: true
+    sampler:
+      percentage: 1.0
+  cloud:
+    stream:
+      kafka:
+        binder:
+          brokers: localhost:9092
+          zkNodes: localhost:2181
+
+
+logging:
+  file: D:/ky_work/micro-service/logs/${spring.application.name}
+  level:
+    ROOT: INFO
+    com.ms: INFO
+    org.springframework.cloud.config.client.ConfigServicePropertySourceLocator: INFO
+    org.springframework.retry.support.RetryTemplate: DEBUG
+    org.springframework.boot.context.embedded.tomcat.TomcatEmbeddedServletContainer: INFO
+    org.springframework.boot.context.embedded.undertow.UndertowEmbeddedServletContainer: INFO
+    com.netflix.hystrix: DEBUG
+    com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedArchaiusProperty: WARN
+

@@ -1,0 +1,300 @@
+SpringBoot相关注解:
+@ConditionalOnBean（仅仅在当前上下文中存在某个对象时，才会实例化一个Bean）
+@ConditionalOnClass（某个class位于类路径上，才会实例化一个Bean）
+@ConditionalOnExpression（当表达式为true的时候，才会实例化一个Bean）
+@ConditionalOnMissingBean（仅仅在当前上下文中不存在某个对象时，才会实例化一个Bean）
+@ConditionalOnMissingClass（某个class类路径上不存在的时候，才会实例化一个Bean）
+@ConditionalOnNotWebApplication（不是web应用）
+
+@ConditionalOnClass({ElasticsearchTemplate.class}) //该注解的参数对应的类必须存在，否则不解析该注解修饰的配置类，
+即当ElasticsearchTemplate.class位于类路径上，才会实例化一个ElasticsearchAutoDataConfiguration
+
+@ConditionalOnMissingBean：该注解表示，如果存在它修饰的类的bean，则不需要再创建这个bean；可以给该注解传入参数例
+如@ConditionOnMissingBean(name = "example")，这个表示如果name为“example”的bean存在，这该注解修饰的代码块不执行。
+
+@AutoConfigureAfter((ElasticsearchAutoConfiguration.class)) //在加载ElasticsearchAutoConfiguration类之后再加载该配置所修饰的当前类
+@ConfigurationProperties(prefix = "elasticsearch.client") //声明所修饰的类为属性配置类，其中elasticsearch.client为属性前缀，对应配置文件yml里边的属性前缀匹配
+@EnableConfigurationProperties(ElasticsearchProperties.class) //启动ElasticsearchProperties属性配置
+@EnableZuulProxy //启动zuul网关代理转发
+@EnableDiscoveryClient  //启动注册中心服务发现客户端
+@EnableEurekaServer //启动注册中心服务端
+@EnableFeignClients  //启动feign客户端
+@EnableHystrixDashboard //启动hystrix仪表盘
+@EnableConfigServer //启动配置中心服务
+
+@EnableZipkinServer //使用http方式收集追踪log
+@EnableZipkinStreamServer //使用消息代理收集追踪log
+点击@EnableZipkinStreamServer注解的源码我们可以看到它也引入了@EnableZipkinServer注解，同时还创建了一个消息队列监听器。
+
+@FeignClient(value = "user-service", fallback = UserClientFallback.class) //@FeignClient 注解来绑定该接口对应user-service服务，fallback为熔断后的回调
+
+@SpringCloudApplication //@SpringCloudApplication包含@EnableDiscoveryClient 、@SpringBootApplication、@EnableCircuitBreaker注解
+
+
+========================================================================================================================
+
+Spring Cloud Sleuth是对Zipkin的一个封装，对于Span、Trace等信息的生成、接入HTTP Request，以及向Zipkin Server发送采集信息等全部自动完成。
+
+
+Spring Cloud Sleuth提供了一套完整的服务跟踪的解决方案。
+
+ 
+
+跟踪原理：pom中依赖spring-cloud-starter-sleuth包后，每次链路请求都会添加一串追踪信息，格式是[server-name, main-traceId,sub-spanId,boolean]
+
+第一个参数：服务结点名称；
+第二个参数：一条链路唯一的ID，叫TraceID
+第三个参数：链路中每一环的ID，叫做SpanID
+第四个参数：是否将信息输出到Zipkin等服务收集和展示。
+
+如：[a-server,4cb38a3029e6ae0a,4cb38a3029e6ae0a,true]
+
+
+========================================================================================================================
+SLF4J 简介：
+SLF4J，即Simple Logging Facade for Java，是一个通用的、Java日志系统的抽象框架。
+对于实现了SLF4J的日志系统，能够在应用部署时（而不是编译时）动态插入应用，使得应用可以采用任何日志系统。
+
+1. 常见的SLF4J日志系统实现
+No-operation (NOP) Logger
+即org.slf4j.helpers.NOPMDCAdapter，是SLF4J API自带的默认实现。该实现只是占位，不会输出任何日志。
+
+Simple Logger
+即org.slf4j.impl.SimpleLogger，是SLF4J API提供的简单日志实现。
+
+Logback
+原生实现了SLF4J API的日志系统，是SLF4J的标准参考实现，提供了强大而灵活的日志功能，是Log4j的继任者。
+logback-classic 非常自然的实现了SLF4J，springBoot官方默认使用logback作为日志系统。
+在spring boot工程中，创建logback-spring.xm在src/main/resources下面(springboot推荐使用logback-spring.xml而不是logback.xml)文件
+
+Log4j
+通过封装实现了SLF4J API的日志系统。
+
+JCL (Jakarta Commons Logging)
+通过封装实现了SLF4J API的日志系统。
+
+Java Logging(JUL, java.util.logging)
+通过封装实现了SLF4J API的日志系统。
+
+MDC (Mapped Diagnostic Context)
+MDC顾名思义提供日志的上下文信息，通过MDC中的参数值区分输出的日志。
+SLF4J的MDC实质上就是一个Map。通常实现SLF4J的日志系统支持MDC，即表明该日志系统负责维护这个Map。应用就可以依赖于日志系统，
+直接存取key/value对到该Map中。
+在SLF4J API中，也提供了MDC的默认实现类org.slf4j.MDC。如果实现SLF4J API的日志系统也支持MDC功能，则覆盖org.slf4j.MDC类。
+目前，只有Log4j和Logback支持MDC功能。Java Logging不支持MDC功能，可以通过SLF4J API中的org.slf4j.helpers.BasicMDCAdapter
+提供MDC功能。而对于其他的日志系统（如slf4j-simple, slf4j-nop），只能使用SLF4J API中的org.slf4j.helpers.NOPMDCAdapter提供MDC功能。
+
+========================================================================================================================
+
+
+
+SELECT table_schema "database", sum( data_length + index_length )/1024 /1024 "Data Base Size in MB", sum( data_free )/1024 /1024 "Free Space in MB"
+FROM information_schema.TABLES GROUP BY table_schema;
+
+call test_insert(3000,2000);
+
+drop procedure  test_insert;
+show procedure status ;
+
+create procedure test_insert(count int,byNum int)
+  begin
+    declare i int;
+    set i = byNum;
+    while i<count do
+      INSERT INTO `work_order`(id,department_id,department_name,system_module_id,system_module,configuration_id,employee_number,name,duty_id,duty,expected_completion_time,assigned_to,
+          assigned_to_id,status,enabled_flag,created_by,updated_by,updation_date,creation_date
+          ) VALUES (id, '1', '系统研发部', '1', '大萨达', '1', '123132', '大萨达', '1', '大萨达阿萨德', '2018-10-30 20:15:58', 'dadad', '1', '11', '1', '大萨达', '爱迪生', '2018-10-30 20:16:14', '2018-10-30 20:16:16');
+      set i=i+1;
+    end while;
+  end;
+
+
+
+SELECT table_schema "database", sum( data_length + index_length )/1024 /1024 "Data Base Size in MB", sum( data_free )/1024 /1024 "Free Space in MB"
+FROM information_schema.TABLES GROUP BY table_schema;
+
+select
+       concat(TABLE_SCHEMA,'.',TABLE_NAME) as `表名称`,
+       TABLE_ROWS as `行数`,
+       concat(round(sum(DATA_LENGTH/1024/1024),2),'MB') as `大小MB`,
+       concat(round(sum(DATA_LENGTH/1024/1024/1024),2),'GB') as `大小GB`
+from information_schema.`TABLES`
+where table_name like '%log%'
+group by TABLE_SCHEMA,TABLE_NAME
+order by TABLE_ROWS desc;
+
+
+https://www.cnblogs.com/weiqihome/p/8922937.html
+
+总结：
+
+1、Spring为bean提供了两种初始化bean的方式，实现InitializingBean接口，实现afterPropertiesSet方法，或者在配置文件中通过init-method指定，两种方式可以同时使用。
+
+2、实现InitializingBean接口是直接调用afterPropertiesSet方法，比通过反射调用init-method指定的方法效率要高一点，但是init-method方式消除了对spring的依赖。
+
+3、如果调用afterPropertiesSet方法时出错，则不调用init-method指定的方法。
+
+
+SpringBoot Endpoint介绍：
+https://blog.csdn.net/ai_xiangjuan/article/details/79469530
+eureka服务注册最长需要2分钟的原因:
+https://segmentfault.com/a/1190000016909677?utm_source=tag-newest
+Hystrix-Dashboard仪表盘
+https://www.cnblogs.com/happyflyingpig/p/8372485.html
+Blockchain 区块链 - 中文资源阅读列表
+https://github.com/LiuBoyu/blockchain
+Elasticsearch分片、副本与路由(shard replica routing)
+http://www.cnblogs.com/kangoroo/p/7622957.html
+
+SQL语句主要可以划分为以下3个类别。
+
+DDL（Data Definition Languages）语句：数据定义语言，这些语句定义了不同的数据段，数据库，表，列，索引等数据库对象。常用的语句关键字主要包括create,drop,alter等。
+DML（Data Manipulation Language）语句：数据操纵语句，用于添加，删除，更新和查询数据库记录，并检查数据完整性。常用的语句关键字主要包括insert，delete,update,select等。
+DCL（Data Control Language）语句：数据控制语句，用于控制不同数据段直接的许可和访问级别的语句。这些语句定义了数据库，表，字段，用户的访问权限和安全级别。主要的语句关键字包括grant,revoke等。
+
+
+Nginx 自从 1.3 版本就开始支持 WebSocket 了，并且可以为 WebSocket 应用程序做反向代理和负载均衡。
+WebSocket 和 HTTP 协议不同，但是 WebSocket 中的握手和 HTTP 中的握手兼容，它使用 HTTP 中的 Upgrade 协议头将连接从 HTTP 升级到 WebSocket，
+当客户端发过来一个 Connection: Upgrade请求头时，Nginx 是不知道的，所以，当 Nginx 代理服务器拦截到一个客户端发来的 Upgrade 请求时，
+需要显式来设置Connection 、Upgrade 头信息，并使用 101（交换协议）返回响应，在客户端和代理服务器、后端服务器之间建立隧道来支持 WebSocket。
+当然，还需要注意一下，WebSockets 仍然受到 Nginx 缺省为60秒的 proxy_read_timeout 的影响。这意味着，如果你有一个程序使用了 WebSockets，
+但又可能超过60秒不发送任何数据的话，那你要么需要增加超时时间，要么实现一个 ping 的消息以保持联系。使用 ping 的解决方法有额外的好处，可以发现连接是否被意外关闭。
+
+key密码：1234
+
+配置ssl（https和webSocket通用）安全证书：
+1、先安装openSSL，下载Win64OpenSSL_Light-1_1_1a.exe，装在C盘
+2、windows 使用openSSL(64位)来生成自签名证书：https://blog.csdn.net/qq_37979887/article/details/80491849
+
+浏览器控制台Console输入以下连接webSocket服务器代码，这里连接的是nginx
+websocket = new WebSocket("wss://www.hugo.com/AKDJFLDJASDSJKFSDLJF");
+
+只需在nginx.conf配置文件的http模块加入以下代码即可满足webSocket的负载均衡:
+
+    upstream websocket_server {
+        server 127.0.0.1:9009 weight=1;
+    }
+
+    server {
+        listen      443; // https 和 wss默认端口
+        server_name  www.hugo.com;
+
+       	ssl on;
+        ssl_certificate server.crt; //server.crt和nginx.conf在同一个目录
+        ssl_certificate_key server_no_passwd.key; //server_no_passwd.key和nginx.conf在同一个目录
+        ssl_session_timeout 5m;
+        #ssl_session_cache shared:SSL:10m;
+        ssl_protocols TLSv1 TLSv1.1 TLSv1.2 SSLv2 SSLv3;
+        ssl_ciphers ALL:!ADH:!EXPORT56:RC4+RSA:+HIGH:+MEDIUM:+LOW:+SSLv2:+EXP;
+        ssl_prefer_server_ciphers on;
+        ssl_verify_client off;
+
+        location / {
+            rewrite ^/(.*)$ /$1 break;
+            proxy_redirect off;
+            proxy_pass http://websocket_server;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real_IP $remote_addr;
+            proxy_set_header X-Forwarded-For $remote_addr:$remote_port;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection upgrade;
+        }
+    }
+
+1、客户端：申请协议升级
+首先，客户端发起协议升级请求。可以看到，采用的是标准的HTTP报文格式，且只支持GET方法。
+
+GET / HTTP/1.1
+Host: localhost:8080
+Origin: http://127.0.0.1:3000
+Connection: Upgrade
+Upgrade: websocket
+Sec-WebSocket-Version: 13
+Sec-WebSocket-Key: w4v7O6xFTi36lq3RNcgctw==
+重点请求首部意义如下：
+
+Connection: Upgrade：表示要升级协议
+Upgrade: websocket：表示要升级到websocket协议。
+Sec-WebSocket-Version: 13：表示websocket的版本。如果服务端不支持该版本，需要返回一个Sec-WebSocket-Versionheader，里面包含服务端支持的版本号。
+Sec-WebSocket-Key：与后面服务端响应首部的Sec-WebSocket-Accept是配套的，提供基本的防护，比如恶意的连接，或者无意的连接。
+注意，上面请求省略了部分非重点请求首部。由于是标准的HTTP请求，类似Host、Origin、Cookie等请求首部会照常发送。
+在握手阶段，可以通过相关请求首部进行安全限制、权限校验等。
+
+2、服务端：响应协议升级
+服务端返回内容如下，状态代码101表示协议切换。到此完成协议升级，后续的数据交互都按照新的协议来。
+
+HTTP/1.1 101 Switching Protocols
+Connection:Upgrade
+Upgrade: websocket
+Sec-WebSocket-Accept: Oy4NRAQ13jhfONC7bP8dTKb4PTU=
+备注：每个header都以\r\n结尾，并且最后一行加上一个额外的空行\r\n。此外，
+服务端回应的HTTP状态码只能在握手阶段使用。过了握手阶段后，就只能采用特定的错误码。
+
+windows安装elasticsearch ：https://www.jianshu.com/p/ce976b481623
+
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.jdbc.Driver
+    type: com.zaxxer.hikari.HikariDataSource
+    url: jdbc:mysql://loclahost:3306/kts?tinyInt1isBit=false&useUnicode=true&characterEncoding=utf-8&autoReconnect=true&failOverReadOnly=false&zeroDateTimeBehavior=convertToNull&useSSL=false
+    username: xxxxx
+    password: xxxxx
+    hikari:
+      connection-test-query: SELECT 1 FROM DUAL
+      minimum-idle: 3
+      maximum-pool-size: 24
+      pool-name: ${spring.application.name}-CP
+      idle-timeout: 10000
+      cachePrepStmts: true
+      prepStmtCacheSize: 250
+      prepStmtCacheSqlLimit: 2048
+      leakDetectionThreshold: 2000
+
+========================================================================================================================
+kafka
+
+进入bin目录（如果是windows系统，进入bin目录后还需要进入windows目录），创建topic，名称为：hugoTopic：
+
+kafka-topics.bat --create --zookeeper localhost:2181 --replication-factor 1 --partitions 1 --topic hugoTopic
+
+kafka windows启动命令：.\bin\windows\kafka-server-start.bat .\config\server.properties
+
+
+进入bin目录（如果是windows系统，进入bin目录后还需要进入windows目录），打开一个PRODUCER，发送消息：
+
+kafka-console-producer.bat --broker-list localhost:9092 --topic hugoTopic
+
+进入bin目录（如果是windows系统，进入bin目录后还需要进入windows目录），打开一个CONSUMER，接受消息：
+
+kafka-console-consumer.bat --bootstrap-server localhost:9092 --topic hugoTopic --from-beginning
+
+
+========================================================================================================================
+head 工具使用：
+windows按照head：https://www.cnblogs.com/hts-technology/p/8477258.html
+在D:\Program Files\elasticsearch-6.4.2\elasticsearch-head-master  下执行npm install 安装完成后执行grunt server 或者npm run start 运行head插件
+
+新增索引数据：
+http://localhost:9200/kts-test/key-work/
+post方式
+{"id":2,"systemModuleId":1,"systemModule":"工单模块-工单配置","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":"1970-01-01 08:01:53","updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1}
+
+
+_search {"query":{"match_all":{}}} return root;
+{"key_work":{"properties":{"journal_title":{"type":"text","analyzer":"ik_max_word","search_analyzer":"ik_max_word","fielddata":tr ue,"fields":{"raw":{"type":"keyword"}}},"journal_volumn":{"type":"text"},"title":{"type":"text","analyzer":"ik_max_word","search_analyzer":"ik_max_word","boost":1.5},"author":{"type":"text"},"begin_page":{"type":"integer","index":false},"end_page":{"type":"integer","index":false},"publish_date":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"publisher":{"type":"text"}}}} return root;
+{"key_work":{"properties":{"journal_title":{"type":"text","fielddata":true,"fields":{"raw":{"type":"keyword"}}},"journal_volumn":{"type":"text"},"title":{"type":"text","boost":1.5},"author":{"type":"text"},"begin_page":{"type":"integer","index":false},"end_page":{"type":"integer","index":false},"publish_date":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"publisher":{"type":"text"}}}} return root;
+kts-test/key_work {"journal_title":"test title","journal_volumn":"Mysecond blog entry","title":"Still trying thisout...","author":"某某某","begin_page":1,"end_page":2,"publish_date":"2018-09-12 12:32:22","publisher":"发布人"} return root;
+{"key-work":{"properties":{"id":{"type":"integer"},"systemModuleId":{"type":"integer"},"systemModule":{"type":"text"},"configurationId":{"type":"integer"},"createdEmployeeNumber":{"type":"text"},"createdName":{"type":"text"},"createdDutyId":{"type":"text"},"createdDuty":{"type":"text"},"createdDepartmentId":{"type":"integer"},"createdDepartmentName":{"type":"text"},"expectedCompletionTime":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"assignedName":{"type":"text"},"assignedEmployeeNumber":{"type":"integer"},"assignedDutyId":{"type":"integer"},"assignedDuty":{"type":"text"},"assignedDepartmentId":{"type":"integer"},"assignedDepartmentName":{"type":"text"},"status":{"type":"integer"},"createdBy":{"type":"integer"},"creationDate":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"updatedBy":{"type":"integer"},"updationDate":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"enabledFlag":{"type":"integer"}}}} return root;
+{"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":null,"createdDutyId":null,"createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":null,"updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":null,"createdDutyId":null,"createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":null,"updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+/kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":null,"createdDutyId":null,"createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":null,"updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+/kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":"1970-01-01 08:01:53","updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":1,"creationDate":"1970-01-01 08:01:53","updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":1,"creationDate":"1970-01-01 08:01:53","updatedBy":2,"updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+kts-test/key-work/ {} return root;
+{} return root;
+{"key-work":{"properties":{"id":{"type":"integer"},"systemModuleId":{"type":"integer"},"systemModule":{"type":"text"},"configurationId":{"type":"integer"},"createdEmployeeNumber":{"type":"text"},"createdName":{"type":"text"},"createdDutyId":{"type":"text"},"createdDuty":{"type":"text"},"createdDepartmentId":{"type":"integer"},"createdDepartmentName":{"type":"text"},"expectedCompletionTime":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"assignedName":{"type":"text"},"assignedEmployeeNumber":{"type":"integer"},"assignedDutyId":{"type":"integer"},"assignedDuty":{"type":"text"},"assignedDepartmentId":{"type":"integer"},"assignedDepartmentName":{"type":"text"},"status":{"type":"integer"},"createdBy":{"type":"text"},"creationDate":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"updatedBy":{"type":"text"},"updationDate":{"type":"date","format":"yyyy-MM-dd HH:mm:ss"},"enabledFlag":{"type":"integer"}}}} return root;
+kts-test/key-work/ {"id":1,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":"1970-01-01 08:01:53","updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;
+kts-test/key-work/ {"id":2,"systemModuleId":1,"systemModule":"工单模块-工单查询","configurationId":1222,"createdEmployeeNumber":"123456","createdName":"test","createdDutyId":"test","createdDuty":"工单配置专员","createdDepartmentId":1,"createdDepartmentName":"工单配置部","expectedCompletionTime":"1970-01-01 08:01:53","assignedName":"张三","assignedEmployeeNumber":123211,"assignedDutyId":1,"assignedDuty":"高级产品经理","assignedDepartmentId":1,"assignedDepartmentName":"产品处理部","status":14146,"createdBy":"张三","creationDate":"1970-01-01 08:01:53","updatedBy":"王五","updationDate":"1970-01-01 08:01:53","enabledFlag":1} return root;

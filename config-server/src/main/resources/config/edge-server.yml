@@ -1,0 +1,77 @@
+server:
+  port: 18003
+  session:
+    tracking-modes: COOKIE
+    timeout: 86400
+    cookie:
+      http-only: true
+      secure: true
+info:
+  component: Zuul Server
+
+endpoints: # SpringBoot的Endpoint主要是用来监控应用服务的运行状况，并集成在Mvc中提供查看接口。内置的Endpoint比如HealthEndpoint会监控dist和db的状况，MetricsEndpoint则会监控内存和gc的状况。
+  restart:
+    enabled: true
+  shutdown:
+    enabled: true
+  health:
+    sensitive: false
+
+security:
+  basic:
+    enabled: false
+  sessions: never
+
+zuul:
+  sensitive-headers: token,Cookie,Set-Cookie,Authorization,JSESSIONID
+  ignoredServices: "*"
+  routes:
+    a-server-api:
+      path: /api/a-server/**
+      serviceId: a-server
+
+spring:
+  http:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+  profiles:
+    active: dev
+
+ribbon:
+  ConnectTimeout: 3000
+  ReadTimeout: 60000
+
+logging:
+  file: D:/ky_work/micro-service/logs/${spring.application.name}
+  level:
+    ROOT: INFO
+    org.springframework.security: INFO
+    org.springframework.security.oauth2: INFO
+    org.springframework.cloud.config.client.ConfigServicePropertySourceLocator: INFO
+    org.springframework.retry.support.RetryTemplate: DEBUG
+    org.springframework.boot.context.embedded.tomcat.TomcatEmbeddedServletContainer: INFO
+    org.springframework.boot.context.embedded.undertow.UndertowEmbeddedServletContainer: INFO
+    com.netflix.hystrix: DEBUG
+    com.netflix.hystrix.strategy.properties.HystrixPropertiesChainedArchaiusProperty: WARN
+    org.pac4j.springframework.web: DEBUG
+    org.pac4j: INFO
+    org.pac4j.core.engine: INFO
+    org.jasig.cas: INFO
+    com.netflix.discovery: WARN
+    org.apache.http: WARN
+    io.undertow.request: WARN
+    com.netflix.loadbalancer: WARN
+    org.springframework.beans.factory.support: WARN
+    javax.activation: WARN
+    org.springframework.web.servlet.handler.SimpleUrlHandlerMapping: WARN
+    org.springframework.security.web.util.matcher.AntPathRequestMatcher: WARN
+    org.springframework.security.web: INFO
+    org.springframework.cloud.netflix.zuul: DEBUG
+    org.springframework.scheduling: INFO
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname:eureka.ms.com}:${eureka.server.port:18001}/eureka/

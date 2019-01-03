@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Socket</title>
+    <script type="text/javascript">
+        var websocket;
+        if (window.WebSocket) {
+            websocket = new WebSocket("ws://127.0.0.1:9009/AKDJFLDJASDSJKFSDLJF");
+
+            websocket.onmessage = function (event) {
+                var respMessage = document.getElementById("respMessage");
+                respMessage.value = respMessage.value + "\n" + event.data;
+            }
+
+            websocket.onclose = function (event) {
+                var respMessage = document.getElementById("respMessage");
+                respMessage.value = respMessage.value + "\n已经断开连接";
+            }
+
+            websocket.onopen = function (event) {
+                var respMessage = document.getElementById("respMessage");
+                respMessage.value = "成功建立连接";
+            }
+        } else {
+            alert("浏览器不支持WebSocket");
+        }
+
+        function sendMsg(msg) {
+            if (window.WebSocket) {
+                if (websocket.readyState == WebSocket.OPEN) {
+                    websocket.send(msg);
+                }
+            } else {
+                return;
+            }
+        }
+    </script>
+</head>
+<body>
+<form onsubmit="return false">
+    <textarea style="width: 600px; height: 200px;" name="message"></textarea>
+    <input type="button" onclick="sendMsg(this.form.message.value)" value="发送消息"><br>
+    <h3>信息</h3>
+    <textarea style="width: 600px; height: 200px;" id="respMessage"></textarea>
+    <input type="button" value="清空消息" onclick="javascript:document.getElementById('respMessage').value = ''">
+</form>
+</body>
+</html>

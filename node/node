@@ -1,0 +1,484 @@
+1、Dubbo中zookeeper做注册中心，如果注册中心集群都挂掉，发布者和订阅者之间还能通信么？
+启动dubbo时，消费者会从zk拉取注册的生产者的地址接口等数据，缓存在本地。每次调用时，按照本地存储的地址进行调用。
+但是在注册中心全部挂掉后增加新的提供者，则不能被消费者发现：
+
+健状性
+监控中心宕掉不影响使用，只是丢失部分采样数据
+数据库宕掉后，注册中心仍能通过缓存提供服务列表查询，但不能注册新服务
+注册中心对等集群，任意一台宕掉后，将自动切换到另一台
+注册中心全部宕掉后，服务提供者和服务消费者仍能通过本地缓存通讯
+服务提供者无状态，任意一台宕掉后，不影响使用
+服务提供者全部宕掉后，服务消费者应用将无法使用，并无限次重连等待服务提供者恢复
+
+========================================================================================================================
+2、dubbo服务负载均衡策略？
+
+1.随机模式。按权重设置随机概率。在一个截面上碰撞的概率较高，但调用越大分布越均匀
+2.轮询模式。按公约后的权重设置轮询比例。但存在响应慢的服务提供者会累积请求
+3.最少活跃调用数。响应快的提供者接受越多请求，响应慢的接受越少请求
+4.一致hash。根据服务提供者ip设置hash环，携带相同的参数总是发送的同一个服务提供者，若服务挂了，则会基于虚拟节点平摊到其他提供者上
+
+AbstractLoadBalance -> LoadBalance -> SPI
+AbstractLoadBalance的实现类：
+1、RandomLoadBalance（随机模式）
+2、RoundRobinLoadBalance（轮询模式）
+3、LeastActiveLoadBlance（最少活跃调用数）
+4、ConsistentHashLoadBalance（一致hash）
+
+随机概率源码：
+优点：实现简单，水平扩展方便
+缺点：当机器有异常的时候，不能根据机器的异常情况分配。
+资料地址：https://mp.weixin.qq.com/s/pmcRnyCehffMtw_D38E2ng
+public class RandomLoadBalance extends AbstractLoadBalance {
+
+    public static final String NAME = "random";
+
+    private final Random random = new Random();
+
+    @Override
+    protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        // 待选择的被调用服务的实例数量
+        int length = invokers.size(); // Number of invokers
+        // 统计总权重
+        int totalWeight = 0; // The sum of weights
+        // 标识：每个被调用服务的实例的权重是否相同
+        boolean sameWeight = true; // Every invoker has the same weight?
+        // 遍历每个被调用服务，获取每个被调用服务的权重，统计所有权重之和，并判断每个调用服务的权重是否相同
+        for (int i = 0; i < length; i++) {
+            int weight = getWeight(invokers.get(i), invocation);
+            totalWeight += weight; // Sum
+            if (sameWeight && i > 0
+                    && weight != getWeight(invokers.get(i - 1), invocation)) { //前一个和后一个的权重对比
+                // 有不相同的权重，则标识 sameWeight 为 false
+                sameWeight = false;
+            }
+        }
+
+        // 总权重大于 0 且 被调用服务权重有不相同的，则随机产生一个 0 到 totalWeight-1 的数，定位到该数是在哪个被调用方的范围内
+        if (totalWeight > 0 && !sameWeight) {
+            // If (not every invoker has the same weight & at least one invoker's weight>0), select randomly based on totalWeight.
+            int offset = random.nextInt(totalWeight);
+            // Return a invoker based on the random value.
+            for (int i = 0; i < length; i++) {
+            // 确认offset落在哪个区间，每个服务一个权重占用一个区间，
+            // 如有两个服务，A的weight=100，B的weight=120，总区间为220，A占用0-99区间，B占用100-219区间。
+                offset -= getWeight(invokers.get(i), invocation);
+                if (offset < 0) {
+                    return invokers.get(i);
+                }
+            }
+        }
+
+        // 所有的被调用服务的权重相同，则随机产生一个 0 到 length-1 的数，返回对应的被调用服务
+        // If all invokers have the same weight value or totalWeight=0, return evenly.
+        return invokers.get(random.nextInt(length));
+    }
+}
+
+轮询模式源码：
+优点：实现简单，易水平扩展，且比较均衡分发到所有实例
+缺点：无法知道所有的实例的情况
+资料地址：https://mp.weixin.qq.com/s/ONZarkw51tlA4kvhX67QMQ
+public class RoundRobinLoadBalance extends AbstractLoadBalance {
+
+    public static final String NAME = "roundrobin";
+
+    // 记录所有提供服务的数据，<serviceKey+methodName, 调用次数>
+    private final ConcurrentMap<String, AtomicPositiveInteger> sequences = new ConcurrentHashMap<String, AtomicPositiveInteger>();
+
+    @Override
+    protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        String key = invokers.get(0).getUrl().getServiceKey() + "." + invocation.getMethodName();
+        // 被调用实例数
+        int length = invokers.size(); // Number of invokers
+        // 最大权重值
+        int maxWeight = 0; // The maximum weight
+        // 最小权重值
+        int minWeight = Integer.MAX_VALUE; // The minimum weight
+        // 记录每个实例以及对应的权重
+        final LinkedHashMap<Invoker<T>, IntegerWrapper> invokerToWeightMap = new LinkedHashMap<Invoker<T>, IntegerWrapper>();
+        // 权重之和
+        int weightSum = 0;
+        // 遍历所有被调用实例
+        for (int i = 0; i < length; i++) {
+            // 获取对应实例的权重值
+            int weight = getWeight(invokers.get(i), invocation);
+            // 设置最大、最小权重值
+            maxWeight = Math.max(maxWeight, weight); // Choose the maximum weight
+            minWeight = Math.min(minWeight, weight); // Choose the minimum weight
+            if (weight > 0) {
+                // 只添加有权重的实例
+                invokerToWeightMap.put(invokers.get(i), new IntegerWrapper(weight));
+                weightSum += weight;
+            }
+        }
+
+        // 获取该服务的调用次数
+        AtomicPositiveInteger sequence = sequences.get(key);
+        if (sequence == null) {
+            // 没有调用记录则添加数据
+            sequences.putIfAbsent(key, new AtomicPositiveInteger());
+            sequence = sequences.get(key);
+        }
+
+        // 调用次数加一
+        int currentSequence = sequence.getAndIncrement();
+
+        // 实例有权重，则根据权重大小分配
+        if (maxWeight > 0 && minWeight < maxWeight) {
+            // 将调用次数 % 权重总数，得出偏移量 mod
+            int mod = currentSequence % weightSum;
+            // 遍历最大的权重值，
+            // 为什么会遍历它?
+            // 因为每一次循环就遍历所有的实例，一个实例最大的权重为 maxWeight，
+            // 最多遍历 maxWeight 次所有实例就可以找到想要的实例
+            for (int i = 0; i < maxWeight; i++) {
+                // 遍历所有的实例
+                for (Map.Entry<Invoker<T>, IntegerWrapper> each : invokerToWeightMap.entrySet()) {
+                    final Invoker<T> k = each.getKey();
+                    final IntegerWrapper v = each.getValue();
+                    if (mod == 0 && v.getValue() > 0) {
+                        // mod 为 0 表示选中了，但要满足该实例的权重大于 0
+                        return k;
+                    }
+                    if (v.getValue() > 0) {
+                        // 实例没选中，则权重减 1，相当于选中机会少了
+                        v.decrement();
+                        // 偏移量也减 1
+                        mod--;
+                    }
+                }
+            }
+        }
+        // 没有权重则 调用次数 % 实例数量 对应下标的实例返回
+        // Round robin
+        return invokers.get(currentSequence % length);
+    }
+
+    private static final class IntegerWrapper {
+        private int value;
+
+        public IntegerWrapper(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return value;
+        }
+
+        public void setValue(int value) {
+            this.value = value;
+        }
+
+        public void decrement() {
+            this.value--;
+        }
+    }
+}
+
+最少活跃调用数源码：
+优点：能动态的根据当前服务的调用情况，选择最小被调用的实例，调用越慢的机器，会接收到更少的请求。
+资料地址：https://mp.weixin.qq.com/s/IdtJYvXRzcoaiDaRPcPzxA
+public class LeastActiveLoadBalance extends AbstractLoadBalance {
+
+    public static final String NAME = "leastactive";
+
+    private final Random random = new Random();
+
+    @Override
+    protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        // 服务实例总数
+        int length = invokers.size(); // Number of invokers
+        // 最小活跃值
+        int leastActive = -1; // The least active value of all invokers
+        // 最小活跃值的实例数量
+        int leastCount = 0; // The number of invokers having the same least active value (leastActive)
+        // 存储所有最小活跃值的实例
+        int[] leastIndexs = new int[length]; // The index of invokers having the same least active value (leastActive)
+        // 总权重值（只记录最小活跃值的实例的权重）
+        int totalWeight = 0; // The sum of weights
+        // 记录第一个最小活跃值的实例的权重
+        int firstWeight = 0; // Initial value, used for comparision
+        // 所有实例的权重是否相同
+        boolean sameWeight = true; // Every invoker has the same weight value?
+        // 遍历所有实例
+        for (int i = 0; i < length; i++) {
+            Invoker<T> invoker = invokers.get(i);
+            // 获取该实例的活跃值
+            int active = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName()).getActive(); // Active number
+            // 获取该实例的权重值
+            int weight = invoker.getUrl().getMethodParameter(invocation.getMethodName(), Constants.WEIGHT_KEY, Constants.DEFAULT_WEIGHT); // Weight
+            if (leastActive == -1 || active < leastActive) { // Restart, when find a invoker having smaller least active value.
+                // 记录最小的活跃值
+                leastActive = active; // Record the current least active value
+                // 重置记录
+                leastCount = 1; // Reset leastCount, count again based on current leastCount
+                leastIndexs[0] = i; // Reset
+                totalWeight = weight; // Reset
+                firstWeight = weight; // Record the weight the first invoker
+                sameWeight = true; // Reset, every invoker has the same weight value?
+            } else if (active == leastActive) { // If current invoker's active value equals with leaseActive, then accumulating.
+                // 增加多一个最小活跃值
+                // 记录该实例的下标
+                leastIndexs[leastCount++] = i; // Record index number of this invoker
+                // 统计总权重值
+                totalWeight += weight; // Add this invoker's weight to totalWeight.
+                // If every invoker has the same weight?
+                if (sameWeight && i > 0
+                        && weight != firstWeight) {
+                    // 同是最小活跃值的实例中权重不一
+                    sameWeight = false;
+                }
+            }
+        }
+
+        // 如果只有一个最小活跃值的实例，则返回该实例
+        // assert(leastCount > 0)
+        if (leastCount == 1) {
+            // If we got exactly one invoker having the least active value, return this invoker directly.
+            return invokers.get(leastIndexs[0]);
+        }
+
+        // 最小活跃值的实例中的权重不一
+        if (!sameWeight && totalWeight > 0) {
+            // If (not every invoker has the same weight & at least one invoker's weight>0), select randomly based on totalWeight.
+            // 依据总权重值产生随机数，返回该随机数所在的实例
+            int offsetWeight = random.nextInt(totalWeight);
+            // Return a invoker based on the random value.
+            // 返回随机的最小活跃实例
+            for (int i = 0; i < leastCount; i++) {
+                int leastIndex = leastIndexs[i];
+                offsetWeight -= getWeight(invokers.get(leastIndex), invocation);
+                if (offsetWeight <= 0)
+                    return invokers.get(leastIndex);
+            }
+        }
+        // 所有最小活跃值的实例都是相同的权重，则随机选择一个实例
+        // If all invokers have the same weight value or totalWeight=0, return evenly.
+        return invokers.get(leastIndexs[random.nextInt(leastCount)]);
+    }
+}
+
+<dubbo:service interface="service.AbcService" ref="abcService" loadbalance="leastactive" filter="activelimit"/>
+
+
+所以我们再看一下 ActiveLimitFilter 源码。
+
+
+@Activate(group = Constants.CONSUMER, value = Constants.ACTIVES_KEY)
+public class ActiveLimitFilter implements Filter {
+
+    @Override
+    public Result invoke(Invoker<?> invoker, Invocation invocation) throws RpcException {
+        URL url = invoker.getUrl();
+        String methodName = invocation.getMethodName();
+        // 获取当前被调用服务配置的最大并发数
+        int max = invoker.getUrl().getMethodParameter(methodName, Constants.ACTIVES_KEY, 0);
+        RpcStatus count = RpcStatus.getStatus(invoker.getUrl(), invocation.getMethodName());
+        if (max > 0) {
+            long timeout = invoker.getUrl().getMethodParameter(invocation.getMethodName(), Constants.TIMEOUT_KEY, 0);
+            long start = System.currentTimeMillis();
+            long remain = timeout;
+            int active = count.getActive();
+            if (active >= max) {
+                // 当前并发数达到配置的最大并发数，则等待
+                synchronized (count) {
+                    while ((active = count.getActive()) >= max) {
+                        try {
+                            count.wait(remain);
+                        } catch (InterruptedException e) {
+                        }
+                        long elapsed = System.currentTimeMillis() - start;
+                        remain = timeout - elapsed;
+                        if (remain <= 0) {
+                            throw new RpcException("Waiting concurrent invoke timeout in client-side for service:  "
+                                    + invoker.getInterface().getName() + ", method: "
+                                    + invocation.getMethodName() + ", elapsed: " + elapsed
+                                    + ", timeout: " + timeout + ". concurrent invokes: " + active
+                                    + ". max concurrent invoke limit: " + max);
+                        }
+                    }
+                }
+            }
+        }
+        try {
+            long begin = System.currentTimeMillis();
+            // 每一次调用前活跃数 +1
+            RpcStatus.beginCount(url, methodName);
+            try {
+                Result result = invoker.invoke(invocation);
+                // 调用后活跃数 -1
+                RpcStatus.endCount(url, methodName, System.currentTimeMillis() - begin, true);
+                return result;
+            } catch (RuntimeException t) {
+                RpcStatus.endCount(url, methodName, System.currentTimeMillis() - begin, false);
+                throw t;
+            }
+        } finally {
+            if (max > 0) {
+                // 完成调用则通知其他阻塞着的线程
+                synchronized (count) {
+                    count.notify();
+                }
+            }
+        }
+    }
+}
+
+一致性Hash源码:
+优点：在一些需要将同一个请求参数对应到同个服务的场景下很适合；当对实例进行增加或者删除的时候，能避免引起很大的变动。
+资料地址：https://mp.weixin.qq.com/s/YjFdJrkBUOoukSVg2JOnvA
+public class ConsistentHashLoadBalance extends AbstractLoadBalance {
+    public static final String NAME = "consistenthash";
+
+    // 记录所有
+    private final ConcurrentMap<String, ConsistentHashSelector<?>> selectors = new ConcurrentHashMap<String, ConsistentHashSelector<?>>();
+
+    @SuppressWarnings("unchecked")
+    @Override
+    protected <T> Invoker<T> doSelect(List<Invoker<T>> invokers, URL url, Invocation invocation) {
+        String methodName = RpcUtils.getMethodName(invocation);
+        String key = invokers.get(0).getUrl().getServiceKey() + "." + methodName;
+        // 计算哈希值 key，通过这个字段来识别出调用实例是否有变化，有变化则重新创建 ConsistentHashSelector
+        int identityHashCode = System.identityHashCode(invokers);
+        ConsistentHashSelector<T> selector = (ConsistentHashSelector<T>) selectors.get(key);
+        if (selector == null || selector.identityHashCode != identityHashCode) {
+            // 没有存在 selector 或者 invokers 实例有变化，重新创建
+            selectors.put(key, new ConsistentHashSelector<T>(invokers, methodName, identityHashCode));
+            selector = (ConsistentHashSelector<T>) selectors.get(key);
+        }
+        return selector.select(invocation);
+    }
+
+    private static final class ConsistentHashSelector<T> {
+
+        private final TreeMap<Long, Invoker<T>> virtualInvokers;
+
+        private final int replicaNumber;
+
+        private final int identityHashCode;
+
+        private final int[] argumentIndex;
+
+        ConsistentHashSelector(List<Invoker<T>> invokers, String methodName, int identityHashCode) {
+            // 虚拟节点
+            this.virtualInvokers = new TreeMap<Long, Invoker<T>>();
+            this.identityHashCode = identityHashCode;
+            URL url = invokers.get(0).getUrl();
+            // 虚拟节点数量
+            this.replicaNumber = url.getMethodParameter(methodName, "hash.nodes", 160);
+            // 需要哈希的参数，默认是第一个参数
+            String[] index = Constants.COMMA_SPLIT_PATTERN.split(url.getMethodParameter(methodName, "hash.arguments", "0"));
+            // 记录需要哈希的参数的下标
+            argumentIndex = new int[index.length];
+            for (int i = 0; i < index.length; i++) {
+                argumentIndex[i] = Integer.parseInt(index[i]);
+            }
+            for (Invoker<T> invoker : invokers) {
+                String address = invoker.getUrl().getAddress();
+                // 每一个实例存 replicaNumber 份虚拟节点
+                for (int i = 0; i < replicaNumber / 4; i++) {
+                    // 先将虚拟节点分为 (replicaNumber/4) 份，先做 MD5
+                    byte[] digest = md5(address + i);
+                    for (int h = 0; h < 4; h++) {
+                        //再做哈希计算，得到 m，作为 Key
+                        long m = hash(digest, h);
+                        // 存到虚拟节点
+                        virtualInvokers.put(m, invoker);
+                    }
+                }
+            }
+        }
+
+        public Invoker<T> select(Invocation invocation) {
+            // 得出要进行哈希的字符串
+            String key = toKey(invocation.getArguments());
+            // 进行 MD5
+            byte[] digest = md5(key);
+            return selectForKey(hash(digest, 0));
+        }
+
+        // 根据 hash.arguments 配置的对多少个参数进行哈希，得出拼接后的字符串
+        private String toKey(Object[] args) {
+            StringBuilder buf = new StringBuilder();
+            for (int i : argumentIndex) {
+                if (i >= 0 && i < args.length) {
+                    buf.append(args[i]);
+                }
+            }
+            return buf.toString();
+        }
+
+        // 选择实例
+        private Invoker<T> selectForKey(long hash) {
+            // 找出大于或等于 hash 中最小的键值对
+            Map.Entry<Long, Invoker<T>> entry = virtualInvokers.ceilingEntry(hash);
+            if (entry == null) {
+                // 找出最小的键值对
+                entry = virtualInvokers.firstEntry();
+            }
+            return entry.getValue();
+        }
+
+        // 计算哈希值
+        private long hash(byte[] digest, int number) {
+            return (((long) (digest[3 + number * 4] & 0xFF) << 24)
+                    | ((long) (digest[2 + number * 4] & 0xFF) << 16)
+                    | ((long) (digest[1 + number * 4] & 0xFF) << 8)
+                    | (digest[number * 4] & 0xFF))
+                    & 0xFFFFFFFFL;
+        }
+
+        // MD5 加密
+        private byte[] md5(String value) {
+            MessageDigest md5;
+            try {
+                md5 = MessageDigest.getInstance("MD5");
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+            md5.reset();
+            byte[] bytes;
+            try {
+                bytes = value.getBytes("UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+            md5.update(bytes);
+            return md5.digest();
+        }
+    }
+}
+========================================================================================================================
+
+https://www.cnblogs.com/duanxz/p/7552857.html
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

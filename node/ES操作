@@ -1,0 +1,414 @@
+Elasticsearch基本知识：
+
+Elasticsearch分片、副本与路由(shard replica routing)
+本文讲述，如何理解Elasticsearch的分片、副本和路由策略。
+
+1、预备知识
+
+1）分片（shard）
+Elasticsearch集群允许系统存储的数据量超过单机容量，实现这一目标引入分片策略shard。在一个索引index中，数据（document）
+被分片处理（sharding）到多个分片上。Elasticsearch屏蔽了管理分片的复杂性，使得多个分片呈现出一个大索引的样子。
+
+2）副本（replica）
+访问压力过大是单机无法处理所有请求的问题，Elasticsearch集群引入了副本策略replica。副本策略对index中的每个分片创建冗余的副本，
+处理查询时可以把这些副本当做主分片来对待（primary shard），此外副本策略提供了高可用和数据安全的保障，
+当分片所在的机器宕机，Elasticsearch可以使用其副本进行恢复，从而避免数据丢失。
+
+3）路由（routing）
+当向Elasticsearch存放数据时，根据文档标识符_id将文档分配到多个分片上，负载均衡算法只需要实现平均即可。当取用数据时，查询所有的分片然后汇总结果，
+而并不必须知道数据到底存在哪个分片上。带来的问题是，在查询时，要查询所有的分片然后汇总结果，造成性能的损耗，在不乐观的情况下，
+有些分片的查询可能失败(failed)，造成结果不准确。为了避免这个问题，引入了路由功能（routing），
+在存入时通过路由键将数据存入指定分片，在查询的时候可以通过相同的路由键指明在哪个分片将数据查出来。
+
+默认情况下，索引数据的分片算法如下：
+shard_num = hash(_routing) % num_primary_shards
+routing字段的取值，默认是_id字段或者是_parent字段，这样的取值在hash之后再与有多少个shard的数量取模，最终得到这条数据应该在被分配在那个一个shard上，
+也就是说默认是基于hash的分片，保证在每个shard上数据量都近似平均，这样就不会出现负载不均衡的情况，然后在检索的时候，
+es默认会搜索所有shard上的数据，最后在master节点上汇聚在处理后，返回最终数据。
+
+假设你有一个100个分片的索引。当一个请求在集群上执行时会发生什么呢？
+1. 这个搜索的请求会被发送到一个节点
+2. 接收到这个请求的节点，将这个查询广播到这个索引的每个分片上（可能是主分片，也可能是复制分片）
+3. 每个分片执行这个搜索查询并返回结果
+4. 结果在通道节点上合并、排序并返回给用户
+
+2、分片(shard)与副本(replica)的数量
+
+ElasticSearch在创建索引数据时，最好指定相关的shards数量和replicas，否则会使用服务器中的默认配置参数shards=5，replicas=1。
+index.number_of_shards: 5
+index.number_of_replicas: 1
+对于一个索引来说，number_of_shards只能设置一次，而number_of_replicas可以使用索引更新设置API在任何时候被增加或者减少。
+
+那么如何确定分片和副本的数量呢？
+依照经验，最理想的分片数量应该依赖于节点的数量。假设索引index配置了10个分片，1个副本，
+那么总共的分片数应该是20个，10 *（1+1），那么最大的Elasticsearch节点数应该就是20。
+
+节点最大数 = 分片数 * （副本数 + 1）
+
+即单机的ES，节点数为1，分片数应该设置为1，副本数设置为0才合理。
+index索引 --> shard分片（一个index上的document可以分到多个shard上） --> replica副本（每个shard可以包含多个副本）
+
+eureka提供了region和zone两个概念来进行分区，这两个概念均来自于亚马逊的AWS：
+region：可以简单理解为地理上的分区，比如亚洲地区，或者华北地区，再或者北京等等，没有具体大小的限制。根据项目具体的情况，可以自行合理划分region。
+zone：可以简单理解为region内的具体机房，比如说region划分为北京，然后北京有两个机房，就可以在此region之下划分出zone1,zone2两个zone。
+
+========================================================================================================================
+DSL （Domain Specific Language）领域专用语言
+
+ES支持一种JSON格式的查询，叫做DSL。
+
+Query和Filter的区别：
+
+Query查询上下文中，查询操作会根据查询的结果进行相关性分值计算，用于确定相关性。分值越高，返回的结果越靠前。
+Filter过滤器上下文中，查询不会计算相关性分值，也不会对结果进行排序。
+Filter过滤器上下文中，查询的结果可以被缓存，常用的过滤器会自动缓存Elasticsearch,加速性能。
+
+# bool组合查询
+# filter:过滤，不参与打分
+# must:如果有多个条件，这些条件都必须满足  and与
+# should:如果有多个条件，满足一个或多个即可 or或
+# must_not:和must相反，必须都不满足条件才可以匹配到 ！非
+# _source:限制查询返回的字段，如:"_source": ["field1","field2",]
+gte	大于或等于
+gt	大于
+lte	小于或等于
+lt	小于
+wildCard : 通配符  prefix:前缀匹配，range区间查询
+
+term 用法与 match 进行对比
+term 一般用在不分词字段上的，因为它是完全匹配查询，
+如果要查询的字段是分词字段就会被拆分成各种分词结果，和完全查询的内容就对应不上了。
+所以自己设置 mapping 的时候有些不分词的时候就最好设置不分词。
+term 和 terms 是 包含（contains） 操作，而非 等值（equals）
+
+========================================================================================================================
+text 和 keyword 的区别:
+在 ES2.x 版本字符串数据是没有 keyword 和 text 类型的，只有string类型，ES更新到5版本后，
+取消了 string 数据类型，代替它的是 keyword 和 text 数据类型。Elasticsearch默认的字符串字段是text类型。
+
+Text 数据类型被用来索引长文本，如内容介绍。
+Text会将文本分词，允许 ES来检索这些词语。text 数据类型不能用来排序和聚合
+
+Keyword 数据类型用来建立电子邮箱地址、姓名、邮政编码和标签等数据，不需要进行分词。
+可以被用来检索过滤、排序和聚合。keyword 类型字段只能用本身来进行检索
+
+在Elasticsearch 5.X 之后会自动给每一个text类型的分词字段都默认新增了一个子字段，名称为：字段名称.keyword，
+这个字段的类型就是keyword，是不分词的，默认保留 256 个字符。假设product_name是个分词字段，
+那么es就自动新增一个名称为：product_name.keyword的不分词字段，也可以用这个子字段来做完全匹配查询。
+
+========================================================================================================================
+Elasticsearch将 HTTP 动词由 PUT 改为 GET 可以用来检索文档，同样的，可以使用 DELETE 命令来删除文档，
+以及使用 HEAD 指令来检查文档是否存在。如果想更新已存在的文档，只需再次PUT。
+
+
+ignore_above 默认值是256，该参数的意思是，某个字段声明了ignore_above之后，当该字段文本的长度大于指定值时，不做倒排索引。
+也就是说，当字段文本的长度大于指定值时，聚合、全文搜索都查不到这条数据。
+ignore_above 最大值是32766，但是要根据场景来设置，比如说中文最大值应该是设定在10922。
+ignore_above 背后实际的含义是，Lucene对一个文本的解析长度，当这个长度大于32766时，将不会落实analyze行为。
+
+
+
+where (position=ES or work=ES or content=ES) and academic=本科 and （city=北京 or city=深圳）
+
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "terms": {
+            "city.keyword": [
+              "北京",
+              "深圳"
+            ]
+          }
+        },
+        {
+          "term": {
+            "academic.keyword": "本科"
+          }
+        },
+        {
+          "bool": {
+            "should": [
+              {
+                "term": {
+                  "content.keyword": "ES"
+                }
+              },
+              {
+                "term": {
+                  "position.keyword": "ES"
+                }
+              },
+              {
+                "term": {
+                  "work.keyword": "ES"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "size": 10,
+  "from": 0
+}
+
+========================================================================================================================
+
+嵌套查询例子
+
+如：district为地区，插入两条数据:
+PUT index1/type1/1
+{
+  "district": [
+    {
+      "province": "江苏省",
+      "city": [
+        "南京市"
+      ]
+    },
+    {
+      "province": "广东省",
+      "city": [
+        "广州市"
+      ]
+    }
+  ]
+}
+
+PUT index1/type1/2
+{
+  "district": [
+    {
+      "province": "四川省",
+      "city": [
+        "成都市"
+      ]
+    },
+    {
+      "province": "浙江省",
+      "city": [
+        "杭州市"
+      ]
+    }
+  ]
+}
+
+按省份聚合（分组）后再加一层按城市聚合，统计每个省份下每个城市的数量，需要用到嵌套查询，如果不使用嵌套查询省和市，省和市不会绑定到一起。
+
+先使用嵌套对象设置映射，只需要在district（地区）下加一个type为nested的属性。
+
+
+PUT index1/type1/_mapping
+{
+  "data": {
+    "properties": {
+      "district": {
+        "type": "nested",
+        "properties": {
+          "city": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
+              }
+            }
+          },
+          "province": {
+            "type": "text",
+            "fields": {
+              "keyword": {
+                "type": "keyword",
+                "ignore_above": 256
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+对嵌套对象使用聚合时，查询语句如下：
+GET index1/type1/_search
+{
+  "aggs": {
+    "district": {
+      "nested": {
+        "path": "district"
+      },
+      "aggs": {
+        "province_group": {
+          "terms": {
+            "field": "district.province.keyword",
+            "size": 10
+          },
+          "aggs": {
+            "city_group": {
+              "terms": {
+                "field": "district.city.keyword",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+其中province_group和city_group都是分组自定义名称。
+========================================================================================================================
+字段返回详解：
+
+kibana中输入：GET /_search 会返回一下结果：
+
+{
+  "took": 9, #  took：整个搜索请求花费多少毫秒
+  "timed_out": false,
+  "_shards": { # shards：shards fail的条件，primary和replica全部挂掉，不影响其他shard。
+               # 默认情况，一个搜索请求，会发送到一个index的所有primary shard上；
+               # 当然，一个primary shard可能会有多个replica shard，所以请求也可能到其中某个replica shard 上。
+    "total": 20,
+    "successful": 20,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": 6, # 本次搜索，返回多少条结果
+    "max_score": 1, # 本次搜索结果中最大的相关分数，
+                    # 每一条document对于search的相关度，越相关，source分数越大，排位越靠前
+    "hits": [ # 默认查询前十条数据，查询完整的数据，以_source降序排序
+      {
+        "_index": "ecommerce", //文档存储的地方，代表document存放在哪个index中
+        "_type": "product", //代表document属于index中的哪个类别（type）,type名称可以是大小写，但是不能以下划线开头，不能包含逗号
+        "_id": "2",//文档的唯一标识，与index与type一起，可以唯一标示和定位一个document，这个id我们可以手动创建，也可以有es帮我们指定
+        "_score": 1,
+        "_source": {
+          "name": "jiajieshi yagao",
+          "desc": "youxiao fangzhu",
+          "price": 25,
+          "producer": "jiajieshi producer",
+          "tags": [
+            "fangzhu"
+          ]
+        }
+      },
+      {
+        "_index": "test_index",
+        "_type": "test_type",
+        "_id": "2",
+        "_score": 1,
+        "_source": {
+          "test_field": "test client 1"
+        }
+      },
+      {
+        "_index": "ecommerce",
+        "_type": "product",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "name": "gaolujie yagao",
+          "desc": "gaoxiao meibai",
+          "price": 30,
+          "producer": "gaolujie producer",
+          "tags": [
+            "meibai",
+            "fangzhu"
+          ]
+        }
+      },
+      {
+        "_index": "my_index",
+        "_type": "my_type",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "test_field": "test data 1"
+        }
+      },
+      {
+        "_index": "test_index",
+        "_type": "test_type",
+        "_id": "1",
+        "_score": 1,
+        "_source": {
+          "test_field": "test client 1"
+        }
+      }
+    ]
+  }
+}
+
+_id生成的两种方式（手动和es自动）
+1、一般来说，是从某些其他的系统中，导入一些数据到es时，会采取这种方式，就是使用系统中已有数据的唯一标识，
+作为es中document的id。举个例子，比如说，我们现在在开发一个电商网站，做搜索功能，或者是OA系统，做员工检索功能。
+这个时候，数据首先会在网站系统或者IT系统内部的数据库中，会先有一份，此时就肯定会有一个数据库的primary key
+（自增长，UUID，或者是业务编号）。如果将数据导入到es中，此时就比较适合采用数据在数据库中已有的primary key。
+
+2、自动生成的id，长度为20个字符，URL安全，base64编码，GUID，分布式系统并行生成时不可能会发生冲突，如："_id": "AVsAwWq_QosR-SRIr1gc"。
+
+
+_source元数据以及定制返回结果解析。
+我们在创建一个document的时候，使用的那个放在request body中的json串，默认情况下，在get的时候，会原封不动的给我们返回回来。
+
+插入一条数据
+POST /test_index/test_type
+{
+  "name":"zhangsan",
+  "age":25,
+  "email":"123@qq.com",
+  "phone":"1111"
+}
+//返回结果
+{
+  "_index": "test_index",
+  "_type": "test_type",
+  "_id": "AVsAxg8EQosR-SRIr1ge",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "created": true
+}
+
+查询
+GET /test_index/test_type/AVsAxg8EQosR-SRIr1ge
+//结果，此时_source下的所有字段和我们刚插入时时一样的
+{
+  "_index": "test_index",
+  "_type": "test_type",
+  "_id": "AVsAxg8EQosR-SRIr1ge",
+  "_version": 1,
+  "found": true,
+  "_source": {
+    "name": "zhangsan",
+    "age": 25,
+    "email": "123@qq.com",
+    "phone": "1111"
+  }
+}
+
+只获取name和age字段
+GET /test_index/test_type/AVsAxg8EQosR-SRIr1ge?_source=name,age
+//结果
+{
+  "_index": "test_index",
+  "_type": "test_type",
+  "_id": "AVsAxg8EQosR-SRIr1ge",
+  "_version": 1,
+  "found": true,
+  "_source": {
+    "name": "zhangsan",
+    "age": 25
+  }
+}
+
+========================================================================================================================

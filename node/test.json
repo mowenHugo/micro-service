@@ -1,0 +1,56 @@
+//{
+//  "data": {
+//    "properties": {
+//      "district": {
+//        "type": "nested",
+//        "properties": {
+//          "city": {
+//            "type": "text",
+//            "fields": {
+//              "keyword": {
+//                "type": "keyword",
+//                "ignore_above": 256
+//              }
+//            }
+//          },
+//          "province": {
+//            "type": "text",
+//            "fields": {
+//              "keyword": {
+//                "type": "keyword",
+//                "ignore_above": 256
+//              }
+//            }
+//          }
+//        }
+//      }
+//    }
+//  }
+//}
+
+
+{
+  "aggs": {
+    "district": {
+      "nested": {
+        "path": "district"
+      },
+      "aggs": {
+        "province_group": {
+          "terms": {
+            "field": "district.province.keyword",
+            "size": 10
+          },
+          "aggs": {
+            "city_group": {
+              "terms": {
+                "field": "district.city.keyword",
+                "size": 10
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

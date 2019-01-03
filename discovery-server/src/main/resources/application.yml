@@ -1,0 +1,29 @@
+server:
+  port: 18001
+
+logging:
+  file: D:/ky_work/micro-service/log/${spring.application.name}
+  level:
+    ROOT: info
+    org.springframework: info
+    org.springframework.web.servlet.view: info
+    org.springframework.web.servlet.mvc: info
+    io.undertow.request: info
+    org.mybatis: debug
+    com.github.pagehelper: TRACE
+    com.zaxxer.hikari: TRACE
+
+eureka:
+  instance:
+    hostname: eureka.ms.com
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 30
+  client:
+    registerWithEureka: false #不要向注册中心注册自己
+    fetchRegistry: false #禁止检索服务
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 60000
+    wait-time-in-ms-when-sync-empty: 0

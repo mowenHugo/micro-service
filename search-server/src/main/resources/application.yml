@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: search-server
+
+server:
+  port: 9007
+  context-path: /
+  compression:
+    enabled: true
+    
+elasticsearch:
+  client:
+    cluster-nodes: 127.0.0.1:9200

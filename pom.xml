@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.hugo</groupId>
+    <artifactId>micro-service</artifactId>
+    <packaging>pom</packaging>
+    <version>1.0-SNAPSHOT</version>
+    <modules>
+        <module>edge-server</module>
+        <module>config-server</module>
+        <module>discovery-server</module>
+        <module>a-server</module>
+        <module>hystrix-dashboard</module>
+        <module>search-server</module>
+        <module>web-push-center</module>
+        <module>b-server</module>
+        <module>c-server</module>
+        <module>zipkin-server</module>
+        <module>data-structure</module>
+        <module>base-framework</module>
+    </modules>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>1.5.4.RELEASE</version>
+    </parent>
+
+    <properties>
+
+        <maven.build.timestamp.format>yyMMddHHmm</maven.build.timestamp.format>
+        <slf4j.version>1.7.25</slf4j.version>
+        <spring.version>4.3.9.RELEASE</spring.version>
+        <commons.lang3.version>3.6</commons.lang3.version>
+        <ehcache.version>3.3.1</ehcache.version>
+        <cache-api.version>1.0.0-PFD</cache-api.version>
+        <jedis.version>2.9.0</jedis.version>
+        <quartz.version>2.2.3</quartz.version>
+        <spring-cloud-dependencies.version>Dalston.SR5</spring-cloud-dependencies.version>
+        <spring.config.version>2.0.2.RELEASE</spring.config.version>
+        <io.netty.version>4.1.18.Final</io.netty.version>
+        <aspectj.version>1.8.9</aspectj.version>
+        <junit.version>4.12</junit.version>
+
+        <java.version>1.8</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud-dependencies.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-starter-config</artifactId>
+                <version>${spring.config.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-all</artifactId>
+                <version>${io.netty.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>fastjson</artifactId>
+                <version>1.2.54</version>
+            </dependency>
+
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.6.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.0.1</version>
+                <configuration>
+                    <attach>true</attach>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <distributionManagement>
+        <repository>
+            <id>nexus-releases</id>
+            <name>Team Nexus Release Repository</name>
+            <url>http://nexus.ms.com:8081/repository/maven-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <name>Team Nexus Snapshot Repository</name>
+            <url>http://nexus.ms.com:8081/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>nexus-public</id>
+            <name>Nexus public Repository</name>
+            <url>http://nexus.ms.com:8081/repository/maven-public</url>
+        </repository>
+    </repositories>
+
+</project>

@@ -31,6 +31,8 @@ SpringBoot相关注解:
 @SpringCloudApplication //@SpringCloudApplication包含@EnableDiscoveryClient 、@SpringBootApplication、@EnableCircuitBreaker注解
 
 
+endpoint ：术语的意思是端点、终点、服务地址等。
+
 ========================================================================================================================
 
 Spring Cloud Sleuth是对Zipkin的一个封装，对于Span、Trace等信息的生成、接入HTTP Request，以及向Zipkin Server发送采集信息等全部自动完成。

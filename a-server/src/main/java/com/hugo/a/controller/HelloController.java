@@ -35,4 +35,5 @@ public class HelloController {
         return bHelloService.callHi("hugo");
 //        return restTemplate.getForObject("http://localhost:19992/bServer?name=" + name, String.class);
     }
+
 }

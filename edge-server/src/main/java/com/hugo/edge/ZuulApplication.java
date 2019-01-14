@@ -17,7 +17,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 @EnableZuulProxy
 @EnableDiscoveryClient
 @EnableFeignClients
-@RefreshScope
+//@RefreshScope
 
 /**
  * @RefreshScope 这个注解是当application.yml配置文件发生变化的时候，不需要手动的进行重启，

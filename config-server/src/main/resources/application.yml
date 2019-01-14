@@ -16,7 +16,7 @@ spring:
     config:
       server:
         native:
-          search-locations: classpath:/configure  #本地文件访问路径 也可以指定磁盘路径，如：search-locations: file:D:/ky_work/conf-file
+          search-locations: classpath:/config  #本地文件访问路径 也可以指定磁盘路径，如：search-locations: file:D:/ky_work/conf-file
       enabled: true
 
 

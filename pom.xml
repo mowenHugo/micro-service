@@ -21,6 +21,11 @@
         <module>zipkin-server</module>
         <module>data-structure</module>
         <module>base-framework</module>
+        <module>feign-test</module>
+        <module>web-push-center-api</module>
+        <module>web-push-center-client</module>
+        <module>web-push-center-sdk</module>
+        <module>push-center-route</module>
     </modules>
 
     <parent>
@@ -32,18 +37,11 @@
     <properties>
 
         <maven.build.timestamp.format>yyMMddHHmm</maven.build.timestamp.format>
-        <slf4j.version>1.7.25</slf4j.version>
-        <spring.version>4.3.9.RELEASE</spring.version>
-        <commons.lang3.version>3.6</commons.lang3.version>
-        <ehcache.version>3.3.1</ehcache.version>
-        <cache-api.version>1.0.0-PFD</cache-api.version>
-        <jedis.version>2.9.0</jedis.version>
-        <quartz.version>2.2.3</quartz.version>
-        <spring-cloud-dependencies.version>Dalston.SR5</spring-cloud-dependencies.version>
+        <spring-cloud-dependencies.version>Dalston.SR1</spring-cloud-dependencies.version>
         <spring.config.version>2.0.2.RELEASE</spring.config.version>
         <io.netty.version>4.1.18.Final</io.netty.version>
-        <aspectj.version>1.8.9</aspectj.version>
         <junit.version>4.12</junit.version>
+        <push-center-client>1.0-SNAPSHOT</push-center-client>
 
         <java.version>1.8</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -59,6 +57,13 @@
 
     <dependencyManagement>
         <dependencies>
+
+            <dependency>
+                <groupId>com.hugo</groupId>
+                <artifactId>web-push-center-client</artifactId>
+                <version>${push-center-client}</version>
+            </dependency>
+
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -83,6 +88,12 @@
                 <groupId>com.alibaba</groupId>
                 <artifactId>fastjson</artifactId>
                 <version>1.2.54</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-data-redis</artifactId>
+                <version>${spring.config.version}</version>
             </dependency>
 
             <dependency>

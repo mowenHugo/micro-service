@@ -4,16 +4,16 @@ server:
 spring:
   application:
     name: a-server
-  sleuth:
-    enabled: true
-    sampler:
-      percentage: 1.0
-  cloud:
-    stream:
-      kafka:
-        binder:
-          brokers: localhost:9092
-          zkNodes: localhost:2181
+#  sleuth:
+#    enabled: true
+#    sampler:
+#      percentage: 1.0
+#  cloud:
+#    stream:
+#      kafka:
+#        binder:
+#          brokers: localhost:9092
+#          zkNodes: localhost:2181
 
 eureka:
   client:
